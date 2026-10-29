@@ -3,7 +3,7 @@ import streamlit as st
 # 페이지 설정
 st.set_page_config(page_title="파이프 물량 및 견적 계산기", page_icon="📏", layout="centered")
 
-st.title("📏 파이프 물량 및 견적 계산기 (인치/mm 지원)")
+st.title("📏 파이프 물량 및 견적 계산기 (원화 단가 기준)")
 st.write("외경, 내경, 두께 중 2개를 입력하세요. 인치(inch) 입력 시 자동으로 mm로 환산됩니다.")
 
 # 1. 재질 선택
@@ -34,16 +34,15 @@ with col2:
 
 st.divider()
 
-# 3. 단가 및 환율 입력
+# 3. 단가 및 환율 입력 (통화 선택 제거, 원화 단가 기준 통일)
 st.subheader("3. 단가 및 환율 입력")
 col3, col4 = st.columns(2)
 
 with col3:
-    price_input = st.text_input("톤당 단가", value="")
-    currency_type = st.selectbox("통화 선택", ["USD ($ / Ton)", "KRW (원 / Ton)"])
+    price_input = st.text_input("톤당 단가 (원 / Ton)", value="", placeholder="예: 1500000")
 
 with col4:
-    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1120.0")
+    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0")
 
 st.divider()
 
@@ -84,19 +83,12 @@ if st.button("견적 계산하기", type="primary", use_container_width=True):
                 unit_ton = unit_kg / 1000.0
                 total_ton = unit_ton * length_m
 
-                # 단가 및 환율 처리
+                # 단가 및 환율 처리 (원화 단가 기준 고정)
                 price_val = float(price_input) if price_input.strip() else 0.0
-                ex_rate = float(rate_input) if rate_input.strip() else 1120.0
+                ex_rate = float(rate_input) if rate_input.strip() else 1350.0
 
-                # 통화 선택에 따른 정확한 금액 산출
-                if "USD" in currency_type:
-                    # 입력한 단가가 USD일 때
-                    total_usd = total_ton * price_val
-                    total_krw = total_usd * ex_rate
-                else:
-                    # 입력한 단가가 KRW(원화)일 때
-                    total_krw = total_ton * price_val
-                    total_usd = total_krw / ex_rate if ex_rate > 0 else 0.0
+                total_krw = total_ton * price_val
+                total_usd = total_krw / ex_rate if ex_rate > 0 else 0.0
 
                 # 결과 출력
                 st.success("✨ 계산이 완료되었습니다!")
