@@ -3,7 +3,7 @@ import streamlit as st
 # 페이지 설정
 st.set_page_config(page_title="파이프 물량 및 견적 계산기", page_icon="📏", layout="centered")
 
-st.title("📏 파이프 물량 및 견적 계산기 (원화 단가 기준)")
+st.title("📏 파이프 물량 및 견적 계산기 (톤당 USD 기준)")
 st.write("외경, 내경, 두께 중 2개를 입력하세요. 인치(inch) 입력 시 자동으로 mm로 환산됩니다.")
 
 # 1. 재질 선택
@@ -25,24 +25,24 @@ unit_mode = st.radio("치수 입력 단위 선택", ["밀리미터 (mm)", "인�
 col1, col2 = st.columns(2)
 
 with col1:
-    od_input = st.text_input("외경 (OD)", value="", placeholder="예: 12 또는 812.8")
-    id_input = st.text_input("내경 (ID)", value="", placeholder="예: 10 또는 750.8")
+    od_input = st.text_input("외경 (OD)", value="", placeholder="예: 12 또는 304.8")
+    id_input = st.text_input("내경 (ID)", value="", placeholder="예: 10 또는 254.0")
 
 with col2:
     wt_input = st.text_input("두께 (WT)", value="", placeholder="예: 0.5 또는 12.7")
-    len_input = st.text_input("총 길이 (Length, m)", value="1.0")
+    len_input = st.text_input("총 길이 (Length, m)", value="1000.0")
 
 st.divider()
 
-# 3. 단가 및 환율 입력 (통화 선택 제거, 원화 단가 기준 통일)
+# 3. 단가 및 환율 입력 (톤당 USD 기준)
 st.subheader("3. 단가 및 환율 입력")
 col3, col4 = st.columns(2)
 
 with col3:
-    price_input = st.text_input("톤당 단가 (원 / Ton)", value="", placeholder="예: 1500000")
+    price_input = st.text_input("톤당 단가 ($ / Ton)", value="", placeholder="예: 1200.0")
 
 with col4:
-    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1120.0")
+    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0")
 
 st.divider()
 
@@ -83,12 +83,12 @@ if st.button("견적 계산하기", type="primary", use_container_width=True):
                 unit_ton = unit_kg / 1000.0
                 total_ton = unit_ton * length_m
 
-                # 단가 및 환율 처리 (원화 단가 기준 고정)
+                # 단가 및 환율 처리 (톤당 USD 기준)
                 price_val = float(price_input) if price_input.strip() else 0.0
-                ex_rate = float(rate_input) if rate_input.strip() else 1120.0
+                ex_rate = float(rate_input) if rate_input.strip() else 1350.0
 
-                total_krw = total_ton * price_val
-                total_usd = total_krw / ex_rate if ex_rate > 0 else 0.0
+                total_usd = total_ton * price_val
+                total_krw = total_usd * ex_rate
 
                 # 결과 출력
                 st.success("✨ 계산이 완료되었습니다!")
@@ -100,8 +100,8 @@ if st.button("견적 계산하기", type="primary", use_container_width=True):
 
                 st.metric(label="미터당 중량", value=f"{unit_kg:.4f} kg/m ({unit_ton:.6f} Ton/m)")
                 st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.6f} Ton")
-                st.metric(label="총 금액 (KRW)", value=f"₩ {total_krw:,.0f}")
                 st.metric(label="총 금액 (USD)", value=f"$ {total_usd:,.2f}")
+                st.metric(label="총 금액 (KRW)", value=f"₩ {total_krw:,.0f}")
 
     except ValueError:
         st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
