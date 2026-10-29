@@ -42,7 +42,7 @@ with col3:
     price_input = st.text_input("톤당 단가 (원 / Ton)", value="", placeholder="예: 1500000")
 
 with col4:
-    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0")
+    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1120.0")
 
 st.divider()
 
@@ -85,7 +85,7 @@ if st.button("견적 계산하기", type="primary", use_container_width=True):
 
                 # 단가 및 환율 처리 (원화 단가 기준 고정)
                 price_val = float(price_input) if price_input.strip() else 0.0
-                ex_rate = float(rate_input) if rate_input.strip() else 1350.0
+                ex_rate = float(rate_input) if rate_input.strip() else 1120.0
 
                 total_krw = total_ton * price_val
                 total_usd = total_krw / ex_rate if ex_rate > 0 else 0.0
