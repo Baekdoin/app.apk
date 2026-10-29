@@ -43,7 +43,7 @@ with col3:
     currency_type = st.selectbox("통화 선택", ["USD ($ / Ton)", "KRW (원 / Ton)"])
 
 with col4:
-    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0")
+    rate_input = st.text_input("원/달러 환율 (KRW/USD)", value="1120.0")
 
 st.divider()
 
@@ -84,14 +84,17 @@ if st.button("견적 계산하기", type="primary", use_container_width=True):
                 unit_ton = unit_kg / 1000.0
                 total_ton = unit_ton * length_m
 
-                # 단가 계산
+                # 단가 및 환율 처리
                 price_val = float(price_input) if price_input.strip() else 0.0
-                ex_rate = float(rate_input) if rate_input.strip() else 1.0
+                ex_rate = float(rate_input) if rate_input.strip() else 1120.0
 
-                if currency_type == "USD ($ / Ton)":
+                # 통화 선택에 따른 정확한 금액 산출
+                if "USD" in currency_type:
+                    # 입력한 단가가 USD일 때
                     total_usd = total_ton * price_val
                     total_krw = total_usd * ex_rate
                 else:
+                    # 입력한 단가가 KRW(원화)일 때
                     total_krw = total_ton * price_val
                     total_usd = total_krw / ex_rate if ex_rate > 0 else 0.0
 
