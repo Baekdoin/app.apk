@@ -4,22 +4,30 @@ import streamlit as st
 # 페이지 설정
 st.set_page_config(page_title="파이프 물량 및 견적 계산기", page_icon="📏", layout="centered")
 
-# --- 로그인 세션 관리 ---
+# --- 자동 로그인 및 세션 관리 ---
+query_params = st.query_params
+
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
+    # URL 파라미터에 auth=pass가 있으면 자동 인증 처리
+    if query_params.get("auth") == "pass":
+        st.session_state["authenticated"] = True
+    else:
+        st.session_state["authenticated"] = False
 
 def check_password():
     """ID/PW 검증 함수"""
     user_id = st.session_state.get("username_input", "")
     user_pw = st.session_state.get("password_input", "")
     
-    # Streamlit Secrets에 저장된 값과 비교 (설정 안 되어있을 경우 대비 기본값 적용 가능)
     correct_id = st.secrets.get("auth", {}).get("username", "jamie")
-    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@1")
+    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@#")
 
     if user_id == correct_id and user_pw == correct_pw:
         st.session_state["authenticated"] = True
-        del st.session_state["password_input"]  # 비밀번호 메모리 제거
+        # 로그인 성공 시 URL에 자동 인증 토큰 심어주기 (이후부터 로그인 생략 가능)
+        st.query_params["auth"] = "pass"
+        if "password_input" in st.session_state:
+            del st.session_state["password_input"]
     else:
         st.session_state["authenticated"] = False
         st.error("⚠️ 아이디 또는 비밀번호가 올바르지 않습니다.")
@@ -32,6 +40,7 @@ if not st.session_state["authenticated"]:
     st.button("로그인", on_click=check_password, type="primary")
     st.stop()  # 로그인 전까지 아래 계산기 코드 실행 안 함
 
+# --- 이하 파이프 계산기 본문 코드 ---
 st.title("📏 파이프 물량 및 견적 계산기")
 st.write("외경, 내경, 두께 중 2개를 입력하세요. 외경/내경과 두께 단위를 각각 독립적으로 설정할 수 있습니다.")
 
