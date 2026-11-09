@@ -4,6 +4,34 @@ import streamlit as st
 # 페이지 설정
 st.set_page_config(page_title="파이프 물량 및 견적 계산기", page_icon="📏", layout="centered")
 
+# --- 로그인 세션 관리 ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+def check_password():
+    """ID/PW 검증 함수"""
+    user_id = st.session_state.get("username_input", "")
+    user_pw = st.session_state.get("password_input", "")
+    
+    # Streamlit Secrets에 저장된 값과 비교 (설정 안 되어있을 경우 대비 기본값 적용 가능)
+    correct_id = st.secrets.get("auth", {}).get("username", "jamie")
+    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@#")
+
+    if user_id == correct_id and user_pw == correct_pw:
+        st.session_state["authenticated"] = True
+        del st.session_state["password_input"]  # 비밀번호 메모리 제거
+    else:
+        st.session_state["authenticated"] = False
+        st.error("⚠️ 아이디 또는 비밀번호가 올바르지 않습니다.")
+
+# 로그인되어 있지 않은 경우 로그인 폼 출력 후 종료
+if not st.session_state["authenticated"]:
+    st.title("🔒 로그인 필요")
+    st.text_input("아이디 (ID)", key="username_input")
+    st.text_input("비밀번호 (PW)", type="password", key="password_input")
+    st.button("로그인", on_click=check_password, type="primary")
+    st.stop()  # 로그인 전까지 아래 계산기 코드 실행 안 함
+
 st.title("📏 파이프 물량 및 견적 계산기")
 st.write("외경, 내경, 두께 중 2개를 입력하세요. 외경/내경과 두께 단위를 각각 독립적으로 설정할 수 있습니다.")
 
