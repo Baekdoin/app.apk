@@ -15,7 +15,7 @@ def check_password():
     
     # Streamlit Secrets에 저장된 값과 비교 (설정 안 되어있을 경우 대비 기본값 적용 가능)
     correct_id = st.secrets.get("auth", {}).get("username", "jamie")
-    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@#")
+    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@1")
 
     if user_id == correct_id and user_pw == correct_pw:
         st.session_state["authenticated"] = True
