@@ -205,4 +205,76 @@ with tab2:
         },
         "16\" (NPS 16)": {
             "od": 406.4,
-            "schs": {"Sch 10S": 4.78, "Sch 40": 12.70, "Sch 80
+            "schs": {"Sch 10S": 4.78, "Sch 40": 12.70, "Sch 80": 21.44}
+        },
+        "18\" (NPS 18)": {
+            "od": 457.0,
+            "schs": {"Sch 10S": 4.19, "Sch 40": 14.27, "Sch 80": 23.80}
+        },
+        "20\" (NPS 20)": {
+            "od": 508.0,
+            "schs": {"Sch 10S": 5.54, "Sch 40": 15.06, "Sch 80": 26.19}
+        },
+        "24\" (NPS 24)": {
+            "od": 610.0,
+            "schs": {"Sch 10S": 6.35, "Sch 40": 17.48, "Sch 80": 30.96}
+        }
+    }
+
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        selected_nps = st.selectbox("파이프 사이즈 (NPS)", list(asme_pipe_db.keys()), key="nps_select")
+    
+    # 선택된 NPS에 따른 스케줄 목록 동적 연동
+    available_schs = asme_pipe_db[selected_nps]["schs"]
+    with col_s2:
+        selected_sch = st.selectbox("스케줄 (Schedule)", list(available_schs.keys()), key="sch_select")
+
+    # 자동 매핑된 OD와 WT 가져오기
+    auto_od = asme_pipe_db[selected_nps]["od"]
+    auto_wt = available_schs[selected_sch]
+    auto_id = auto_od - (2 * auto_wt)
+
+    # 화면에 자동 매핑된 mm/inch 치수 안내
+    st.info(f"📌 **선택 규격 적용 치수** 👉 외경(OD): **{auto_od} mm** ({auto_od/25.4:.3f}인치) | 두께(WT): **{auto_wt} mm** | 내경(ID): **{auto_id:.2f} mm**")
+
+    len_input_2 = st.text_input("총 길이 (Length, m)", value="1000.0", key="len_2")
+
+    st.divider()
+    st.subheader("3. 단가 및 환율 입력")
+    col3_2, col4_2 = st.columns(2)
+    with col3_2:
+        price_input_2 = st.text_input("톤당 단가 ($ / Ton)", value="", placeholder="예: 1200.0", key="price_2")
+    with col4_2:
+        rate_input_2 = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0", key="rate_2")
+
+    st.divider()
+
+    if st.button("견적 계산하기 (규격선택)", type="primary", use_container_width=True, key="btn_2"):
+        try:
+            length_m = float(len_input_2) if len_input_2 and len_input_2.strip() else 1.0
+
+            # 중량 계산
+            unit_kg = (auto_od - auto_wt) * auto_wt * factor_2
+            unit_ton = unit_kg / 1000.0
+            total_ton = unit_ton * length_m
+
+            # 플레이트 폭 계산
+            plate_width_mm = math.pi * (auto_od - auto_wt)
+            plate_width_m = plate_width_mm / 1000.0
+
+            # 단가 및 환율 처리
+            price_val = float(price_input_2) if price_input_2.strip() else 0.0
+            ex_rate = float(rate_input_2) if rate_input_2.strip() else 1350.0
+            total_usd = total_ton * price_val
+            total_krw = total_usd * ex_rate
+
+            st.success("✨ ASME 규격 기반 계산이 완료되었습니다!")
+            st.metric(label="미터당 중량", value=f"{unit_kg:.4f} kg/m ({unit_ton:.6f} Ton/m)")
+            st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.6f} Ton")
+            st.metric(label="소재 플레이트 폭 (전개폭)", value=f"{plate_width_mm:,.2f} mm ({plate_width_m:,.3f} m)")
+            st.metric(label="총 금액 (USD)", value=f"$ {total_usd:,.2f}")
+            st.metric(label="총 금액 (KRW)", value=f"₩ {total_krw:,.0f}")
+
+        except ValueError:
+            st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
