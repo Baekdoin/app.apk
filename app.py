@@ -149,11 +149,10 @@ with tab2:
     st.subheader("2. ASME 표준 규격 선택 (NPS & Schedule)")
 
     # ASME B36.10 / B36.19 주요 대표 규격 DB (NPS 기준 외경 mm 및 Sch별 두께 mm 매핑)
-    # 형식: "NPS 표시": { 외경(OD_mm), { "Sch종류": 두께(mm), ... } }
     asme_pipe_db = {
         "1/2\" (NPS 1/2)": {
             "od": 21.3,
-            schs: {"Sch 10S / 10": 2.11, "Sch 40 / 40S": 2.77, "Sch 80 / 80S": 3.73}
+            "schs": {"Sch 10S / 10": 2.11, "Sch 40 / 40S": 2.77, "Sch 80 / 80S": 3.73}
         },
         "3/4\" (NPS 3/4)": {
             "od": 26.7,
@@ -225,17 +224,14 @@ with tab2:
     with col_s1:
         selected_nps = st.selectbox("파이프 사이즈 (NPS)", list(asme_pipe_db.keys()), key="nps_select")
     
-    # 선택된 NPS에 따른 스케줄 목록 동적 연동
     available_schs = asme_pipe_db[selected_nps]["schs"]
     with col_s2:
         selected_sch = st.selectbox("스케줄 (Schedule)", list(available_schs.keys()), key="sch_select")
 
-    # 자동 매핑된 OD와 WT 가져오기
     auto_od = asme_pipe_db[selected_nps]["od"]
     auto_wt = available_schs[selected_sch]
     auto_id = auto_od - (2 * auto_wt)
 
-    # 화면에 자동 매핑된 mm/inch 치수 안내
     st.info(f"📌 **선택 규격 적용 치수** 👉 외경(OD): **{auto_od} mm** ({auto_od/25.4:.3f}인치) | 두께(WT): **{auto_wt} mm** | 내경(ID): **{auto_id:.2f} mm**")
 
     len_input_2 = st.text_input("총 길이 (Length, m)", value="1000.0", key="len_2")
@@ -254,16 +250,13 @@ with tab2:
         try:
             length_m = float(len_input_2) if len_input_2 and len_input_2.strip() else 1.0
 
-            # 중량 계산
             unit_kg = (auto_od - auto_wt) * auto_wt * factor_2
             unit_ton = unit_kg / 1000.0
             total_ton = unit_ton * length_m
 
-            # 플레이트 폭 계산
             plate_width_mm = math.pi * (auto_od - auto_wt)
             plate_width_m = plate_width_mm / 1000.0
 
-            # 단가 및 환율 처리
             price_val = float(price_input_2) if price_input_2.strip() else 0.0
             ex_rate = float(rate_input_2) if rate_input_2.strip() else 1350.0
             total_usd = total_ton * price_val
