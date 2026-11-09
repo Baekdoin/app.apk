@@ -204,6 +204,3 @@ with tab2:
         st.metric(label="외경 (OD)", value=f"{auto_od:.1f} mm", delta=f"{auto_od/25.4:.3f} inch")
     with col_r3:
         st.metric(label="내경 (ID)", value=f"{auto_id:.2f} mm", delta=f"{auto_id/25.4:.3f} inch")
-
-        except ValueError:
-            st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
