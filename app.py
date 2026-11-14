@@ -17,8 +17,8 @@ def check_password():
     user_id = st.session_state.get("username_input", "")
     user_pw = st.session_state.get("password_input", "")
     
-    correct_id = st.secrets.get("auth", {}).get("username", "jamie")
-    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@#")
+    correct_id = st.secrets.get("auth", {}).get("username", "ssuae")
+    correct_pw = st.secrets.get("auth", {}).get("password", "jtpsb")
 
     if user_id == correct_id and user_pw == correct_pw:
         st.session_state["authenticated"] = True
