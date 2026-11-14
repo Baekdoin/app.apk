@@ -46,18 +46,18 @@ materials = {
     "알루미늄 (0.0084823)": 0.0084823,
 }
 
-# 지역별 운임 표 Total 금액에 0.27을 곱해 USD로 환산 반영[cite: 4]
+# 지역별 운임 표 Total 금액에 0.27을 곱해 USD로 환산 반영
 shipping_destinations = {
     "지역 미선택 (운임 미포함)": 0.0,
-    "Jebel Ali": 2123.75 * 0.27,      # 약 $573.41
-    "Hamriyah": 2023.75 * 0.27,      # 약 $546.41
-    "Sharjah": 1923.75 * 0.27,       # 약 $519.41
-    "Ras Al Khaimah (SAQR)": 2133.75 * 0.27, # 약 $576.11
-    "Fujairah (city only)": 1973.75 * 0.27,  # 약 $532.91
-    "Fujairah (Dibba)": 2173.75 * 0.27,      # 약 $586.91
-    "Abu Dhabi (Kizad)": 2823.75 * 0.27,     # 약 $762.41
-    "Abu Dhabi (Mussafah)": 2823.75 * 0.27,  # 약 $762.41
-    "Abu Dhabi (Ruwais)": 3823.75 * 0.27     # 약 $1,032.41
+    "Jebel Ali": 2123.75 * 0.27,
+    "Hamriyah": 2023.75 * 0.27,
+    "Sharjah": 1923.75 * 0.27,
+    "Ras Al Khaimah (SAQR)": 2133.75 * 0.27,
+    "Fujairah (city only)": 1973.75 * 0.27,
+    "Fujairah (Dibba)": 2173.75 * 0.27,
+    "Abu Dhabi (Kizad)": 2823.75 * 0.27,
+    "Abu Dhabi (Mussafah)": 2823.75 * 0.27,
+    "Abu Dhabi (Ruwais)": 3823.75 * 0.27
 }
 
 tab1, tab2 = st.tabs(["✍️ 직접 입력 모드", "📖 ASME B36.10/19 규격 조회 모드"])
@@ -140,19 +140,19 @@ with tab1:
                     
                     if 18.0 <= od_inch <= 20.0:
                         truck_capacity = 12
-                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"[cite: 3]
+                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"
                     elif 22.0 <= od_inch <= 24.0:
                         truck_capacity = 9
-                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"[cite: 3]
+                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"
                     elif 26.0 <= od_inch <= 32.0:
                         truck_capacity = 5
-                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"[cite: 3]
+                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"
                     elif 34.0 <= od_inch <= 52.0:
                         truck_capacity = 3
-                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"[cite: 3]
+                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"
                     elif od_inch >= 54.0:
                         truck_capacity = 1
-                        tier_desc = "54\" 이상 구간 (총 1개 적재)"[cite: 3]
+                        tier_desc = "54\" 이상 구간 (총 1개 적재)"
                     else:
                         truck_capacity = 12
                         tier_desc = "18\" 미만 소구경 (기본 12개 적재 기준)"
@@ -160,7 +160,6 @@ with tab1:
                     total_pipes = math.ceil(length_m / pipe_unit_len)
                     required_trucks = math.ceil(total_pipes / truck_capacity)
 
-                    # USD 환산된 1대당 운임비 × 트럭 수
                     unit_freight_cost_usd = shipping_destinations[selected_dest]
                     total_freight_cost_usd = required_trucks * unit_freight_cost_usd
 
@@ -168,7 +167,6 @@ with tab1:
                     ex_rate = float(rate_input_1) if rate_input_1.strip() else 1350.0
                     material_usd = total_ton * price_val
 
-                    # 최종 합산 가격 (자재비 USD + 운임비 USD) -> KRW 환산
                     grand_total_usd = material_usd + total_freight_cost_usd
                     grand_total_krw = grand_total_usd * ex_rate
 
