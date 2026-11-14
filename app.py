@@ -17,8 +17,8 @@ def check_password():
     user_id = st.session_state.get("username_input", "")
     user_pw = st.session_state.get("password_input", "")
     
-    correct_id = st.secrets.get("auth", {}).get("username", "ssuae")
-    correct_pw = st.secrets.get("auth", {}).get("password", "jtpsb")
+    correct_id = st.secrets.get("auth", {}).get("username", "jamie")
+    correct_pw = st.secrets.get("auth", {}).get("password", "benj2892@#")
 
     if user_id == correct_id and user_pw == correct_pw:
         st.session_state["authenticated"] = True
@@ -39,7 +39,6 @@ if not st.session_state["authenticated"]:
 # --- 파이프 계산기 본문 ---
 st.title("📏 파이프 물량 및 견적 계산기")
 
-# 재질 선택 (탭 1 전용)
 materials = {
     "탄소강 / A105 / WPHY (0.0246615)": 0.0246615,
     "STS 304 (0.0249126)": 0.0249126,
@@ -47,7 +46,6 @@ materials = {
     "알루미늄 (0.0084823)": 0.0084823,
 }
 
-# 탭 생성
 tab1, tab2 = st.tabs(["✍️ 직접 입력 모드", "📖 ASME B36.10/19 규격 조회 모드"])
 
 # ==========================================
@@ -73,6 +71,9 @@ with tab1:
     with col2:
         wt_input = st.text_input("두께 (WT)", value="", placeholder="예: 0.5 또는 12.7", key="wt_in")
         len_input_1 = st.text_input("총 길이 (Length, m)", value="1000.0", key="len_1")
+
+    # 파이프 본당 길이 설정 (트럭 적재 수량 산출용 기본 12m)
+    pipe_unit_len = st.number_input("파이프 본당 기준 길이 (m)", min_value=1.0, value=12.0, step=1.0, key="pipe_unit_len")
 
     st.divider()
     st.subheader("3. 단가 및 환율 입력")
@@ -120,6 +121,36 @@ with tab1:
                     plate_width_mm = math.pi * (od - wt)
                     plate_width_m = plate_width_mm / 1000.0
 
+                    # --- 트럭 수 계산 로직 (제공해주신 이미지 표 기준 적용) ---
+                    # 외경(OD)을 인치(inch)로 환산하여 구간 판별
+                    od_inch = od / 25.4
+                    
+                    if 18.0 <= od_inch <= 20.0:
+                        truck_capacity = 12
+                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"
+                    elif 22.0 <= od_inch <= 24.0:
+                        truck_capacity = 9
+                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"
+                    elif 26.0 <= od_inch <= 32.0:
+                        truck_capacity = 5
+                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"
+                    elif 34.0 <= od_inch <= 52.0:
+                        truck_capacity = 3
+                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"
+                    elif od_inch >= 54.0:
+                        truck_capacity = 1
+                        tier_desc = "54\" 이상 구간 (총 1개 적재)"
+                    else:
+                        # 18인치 미만 소구경의 경우 기본 넉넉하게 산출 또는 예외 처리 (기본 12개 이상으로 처리)
+                        truck_capacity = 12
+                        tier_desc = "18\" 미만 소구경 (기본 12개 적재 기준)"
+
+                    # 총 파이프 본수 계산 (총 길이 / 본당 길이)
+                    total_pipes = math.ceil(length_m / pipe_unit_len)
+                    # 필요한 트럭 수 계산 (올림 처리)
+                    required_trucks = math.ceil(total_pipes / truck_capacity)
+
+                    # 단가 및 환율 처리
                     price_val = float(price_input_1) if price_input_1.strip() else 0.0
                     ex_rate = float(rate_input_1) if rate_input_1.strip() else 1350.0
                     total_usd = total_ton * price_val
@@ -132,18 +163,21 @@ with tab1:
                     st.metric(label="미터당 중량", value=f"{unit_kg:.4f} kg/m ({unit_ton:.6f} Ton/m)")
                     st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.6f} Ton")
                     st.metric(label="소재 플레이트 폭 (전개폭)", value=f"{plate_width_mm:,.2f} mm ({plate_width_m:,.3f} m)")
+                    
+                    # 요청하신 플레이트 폭과 총 금액 사이의 트럭 수 결과 표시
+                    st.metric(label="🚚 필요한 트럭 수 (Estimated Trucks)", value=f"{required_trucks} 대", delta=f"총 파이프 {total_pipes}본 / {tier_desc}")
+
                     st.metric(label="총 금액 (USD)", value=f"$ {total_usd:,.2f}")
                     st.metric(label="총 금액 (KRW)", value=f"₩ {total_krw:,.0f}")
         except ValueError:
             st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
 
 # ==========================================
-# 탭 2: ASME B36.10 / B36.19 규격 조회 모드 (치수 환산 전용)
+# 탭 2: ASME B36.10 / B36.19 규격 조회 모드
 # ==========================================
 with tab2:
     st.subheader("📖 ASME 표준 규격 치수 조회 (1/2\" ~ 48\")")
 
-    # ASME B36.10 & B36.19 표준 전수 매핑 데이터 (Sch 10S / S10 -> S10 으로 명칭 간소화)
     asme_pipe_db = {
         "1/2\" (NPS 1/2, DN 15)": {"od": 21.3, "schs": {"S10": 2.11, "STD / S40": 2.77, "XS / S80": 3.73, "S160": 4.78, "XXS": 7.47, "S5S": 1.65, "S10S": 2.11, "S40S": 2.77, "S80S": 3.73}},
         "3/4\" (NPS 3/4, DN 20)": {"od": 26.7, "schs": {"S5": 1.65, "S10": 2.11, "S30": 2.41, "STD / S40": 2.87, "XS / S80": 3.91, "S160": 5.56, "XXS": 7.82, "S5S": 1.65, "S10S": 2.11, "S40S": 2.87, "S80S": 3.91}},
@@ -164,7 +198,7 @@ with tab2:
         "16\" (NPS 16, DN 400)": {"od": 406.4, "schs": {"S10": 4.19, "S20": 6.35, "S30": 7.92, "STD / S40": 9.53, "S60": 12.70, "XS": 12.70, "S80": 16.66, "S100": 21.44, "S120": 26.19, "S140": 30.96, "S160": 36.53, "XXS": 40.49, "S10S": 4.19, "S40S": 9.53, "S80S": 12.70}},
         "18\" (NPS 18, DN 450)": {"od": 457.0, "schs": {"S10": 4.19, "S20": 6.35, "S30": 7.92, "STD": 9.53, "S40": 11.13, "S60": 14.27, "XS": 12.70, "S80": 19.05, "S100": 23.83, "S120": 29.36, "S140": 34.93, "S160": 39.67, "XXS": 45.24, "S10S": 4.19, "S40S": 9.53, "S80S": 12.70}},
         "20\" (NPS 20, DN 500)": {"od": 508.0, "schs": {"S10": 4.78, "S20": 6.35, "S30": 9.53, "STD": 9.53, "S40": 12.70, "S60": 15.09, "XS": 12.70, "S80": 20.62, "S100": 26.19, "S120": 32.54, "S140": 38.10, "S160": 44.45, "XXS": 50.01, "S10S": 4.78, "S40S": 9.53, "S80S": 12.70}},
-        "22\" (NPS 22, DN 550)": {"od": 558.8, "schs": {"S10": 4.78, "S20": 6.35, "S30": 9.53, "STD": 9.53, "S40": 12.70, "S60": 15.90, "XS": 12.70, "S80": 22.23, "S100": 28.58, "S120": 34.93, "S140": 41.28, "S160": 47.63, "XXS": 53.98, "S10S": 4.78, "S54S": 5.54}},
+        "22\" (NPS 22, DN 550)": {"od": 558.8, "schs": {"S10": 4.78, "S20": 6.35, "S30": 9.53, "STD": 9.53, "S40": 12.70, "S60": 15.90, "XS": 12.70, "S80": 22.23, "S100": 28.58, "S120": 34.93, "S140": 41.28, "S160": 47.63, "XXS": 53.98, "S10S": 4.78}},
         "24\" (NPS 24, DN 600)": {"od": 609.6, "schs": {"S5": 5.54, "S10": 6.35, "S20": 9.53, "S30": 14.27, "STD": 9.53, "S40": 17.48, "S60": 24.61, "XS": 12.70, "S80": 30.96, "S100": 38.89, "S120": 46.02, "S140": 52.37, "S160": 59.54, "S5S": 5.54, "S10S": 6.35, "S40S": 9.53, "S80S": 12.70}},
         "26\" (NPS 26, DN 650)": {"od": 660.4, "schs": {"S10": 7.92, "S20": 12.70, "STD": 9.53, "XS": 12.70}},
         "28\" (NPS 28, DN 700)": {"od": 711.2, "schs": {"S10": 7.92, "S20": 12.70, "S30": 15.88, "STD": 9.53, "XS": 12.70}},
@@ -194,7 +228,6 @@ with tab2:
 
     st.divider()
 
-    # 치수 결과 출력 카드 (mm 및 inch 즉시 확인)
     st.markdown("### 📐 규격 치수 환산 결과")
     
     col_r1, col_r2, col_r3 = st.columns(3)
