@@ -46,18 +46,18 @@ materials = {
     "알루미늄 (0.0084823)": 0.0084823,
 }
 
-# 올려주신 이미지 표의 실제 지역별 Total 운임 단가 반영 (단위: AED 또는 표 기준 통화)[cite: 4]
+# 올려주신 이미지 표의 실제 지역별 Total 운임 단가 반영[cite: 4]
 shipping_destinations = {
     "지역 미선택 (운임 미포함)": 0.0,
-    "Jebel Ali": 2123.75,[cite: 4]
-    "Hamriyah": 2023.75,[cite: 4]
-    "Sharjah": 1923.75,[cite: 4]
-    "Ras Al Khaimah (SAQR)": 2133.75,[cite: 4]
-    "Fujairah (city only)": 1973.75,[cite: 4]
-    "Fujairah (Dibba)": 2173.75,[cite: 4]
-    "Abu Dhabi (Kizad)": 2823.75,[cite: 4]
-    "Abu Dhabi (Mussafah)": 2823.75,[cite: 4]
-    "Abu Dhabi (Ruwais)": 3823.75[cite: 4]
+    "Jebel Ali": 2123.75,
+    "Hamriyah": 2023.75,
+    "Sharjah": 1923.75,
+    "Ras Al Khaimah (SAQR)": 2133.75,
+    "Fujairah (city only)": 1973.75,
+    "Fujairah (Dibba)": 2173.75,
+    "Abu Dhabi (Kizad)": 2823.75,
+    "Abu Dhabi (Mussafah)": 2823.75,
+    "Abu Dhabi (Ruwais)": 3823.75
 }
 
 tab1, tab2 = st.tabs(["✍️ 직접 입력 모드", "📖 ASME B36.10/19 규격 조회 모드"])
@@ -76,7 +76,7 @@ with tab1:
     with col_u1:
         od_id_unit = st.radio("외경/내경 (OD/ID) 단위", ["밀리미터 (mm)", "인치 (inch / NPS)"], horizontal=True, key="unit_od")
     with col_u2:
-        wt_unit = st.radio("두께 (WT) 단위", ["밀리미터 (mm)", "인치 (inch)"], horizontal=True, key="unit_wt")
+        wt_unit = st.radio("두께 (WT) 단위", ["밀리미터 (mm)", "인치 (inch)"], horizontal=True, key="wt_unit")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -96,7 +96,6 @@ with tab1:
     with col4:
         rate_input_1 = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0", key="rate_1")
 
-    # 올려주신 표 기반 지역 선택 셀렉트박스[cite: 4]
     selected_dest = st.selectbox("도착 지역 선택 (운송비 산출용)", list(shipping_destinations.keys()), key="dest_select")
 
     st.divider()
@@ -171,7 +170,7 @@ with tab1:
                     ex_rate = float(rate_input_1) if rate_input_1.strip() else 1350.0
                     material_usd = total_ton * price_val
 
-                    # 최종 합산 가격 (자재비 USD + 운임비) -> 환율 적용 KRW
+                    # 최종 합산 가격 (자재비 USD + 운송비) -> 환율 적용 KRW
                     grand_total_usd = material_usd + total_freight_cost
                     grand_total_krw = grand_total_usd * ex_rate
 
@@ -185,7 +184,6 @@ with tab1:
                     
                     st.metric(label="🚚 필요한 트럭 수", value=f"{required_trucks} 대", delta=f"총 파이프 {total_pipes}본 / {tier_desc}")
 
-                    # 지역 선택 여부에 따른 운임비 표시
                     if selected_dest != "지역 미선택 (운임 미포함)":
                         st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"{total_freight_cost:,.2f}", delta=f"1대당 {unit_freight_cost:,.2f} × {required_trucks}대")[cite: 4]
                     else:
