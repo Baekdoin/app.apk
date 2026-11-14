@@ -46,7 +46,7 @@ materials = {
     "알루미늄 (0.0084823)": 0.0084823,
 }
 
-# 올려주신 이미지 표의 실제 지역별 Total 운임 단가 반영[cite: 4]
+# 지역별 운임 표 단가 (Total 금액 기준)
 shipping_destinations = {
     "지역 미선택 (운임 미포함)": 0.0,
     "Jebel Ali": 2123.75,
@@ -136,24 +136,23 @@ with tab1:
                     plate_width_mm = math.pi * (od - wt)
                     plate_width_m = plate_width_mm / 1000.0
 
-                    # 트럭 수 계산 로직 (표 기준 적용)[cite: 3]
                     od_inch = od / 25.4
                     
                     if 18.0 <= od_inch <= 20.0:
                         truck_capacity = 12
-                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"[cite: 3]
+                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"
                     elif 22.0 <= od_inch <= 24.0:
                         truck_capacity = 9
-                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"[cite: 3]
+                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"
                     elif 26.0 <= od_inch <= 32.0:
                         truck_capacity = 5
-                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"[cite: 3]
+                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"
                     elif 34.0 <= od_inch <= 52.0:
                         truck_capacity = 3
-                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"[cite: 3]
+                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"
                     elif od_inch >= 54.0:
                         truck_capacity = 1
-                        tier_desc = "54\" 이상 구간 (총 1개 적재)"[cite: 3]
+                        tier_desc = "54\" 이상 구간 (총 1개 적재)"
                     else:
                         truck_capacity = 12
                         tier_desc = "18\" 미만 소구경 (기본 12개 적재 기준)"
@@ -161,16 +160,13 @@ with tab1:
                     total_pipes = math.ceil(length_m / pipe_unit_len)
                     required_trucks = math.ceil(total_pipes / truck_capacity)
 
-                    # 운임비 계산 (선택 지역 단가 × 트럭 수)[cite: 4]
                     unit_freight_cost = shipping_destinations[selected_dest]
                     total_freight_cost = required_trucks * unit_freight_cost
 
-                    # 자재비 계산
                     price_val = float(price_input_1) if price_input_1.strip() else 0.0
                     ex_rate = float(rate_input_1) if rate_input_1.strip() else 1350.0
                     material_usd = total_ton * price_val
 
-                    # 최종 합산 가격 (자재비 USD + 운송비) -> 환율 적용 KRW
                     grand_total_usd = material_usd + total_freight_cost
                     grand_total_krw = grand_total_usd * ex_rate
 
@@ -185,14 +181,13 @@ with tab1:
                     st.metric(label="🚚 필요한 트럭 수", value=f"{required_trucks} 대", delta=f"총 파이프 {total_pipes}본 / {tier_desc}")
 
                     if selected_dest != "지역 미선택 (운임 미포함)":
-                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"{total_freight_cost:,.2f}", delta=f"1대당 {unit_freight_cost:,.2f} × {required_trucks}대")[cite: 4]
+                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"{total_freight_cost:,.2f}", delta=f"1대당 {unit_freight_cost:,.2f} × {required_trucks}대")
                     else:
                         st.info("💡 지역을 선택하시면 표 기준 총 운송비 및 최종 합산 견적이 함께 산출됩니다.")
 
                     st.metric(label="자재 순수 금액 (USD)", value=f"$ {material_usd:,.2f}")
                     
                     st.divider()
-                    # 최종 포함 가격 출력 (자재비 + 운송비)
                     st.metric(label="🔥 최종 총가격 (자재비 + 운송비 포함)", value=f"{grand_total_usd:,.2f}", delta=f"환율 적용 ₩ {grand_total_krw:,.0f}")
         except ValueError:
             st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
