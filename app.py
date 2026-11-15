@@ -1,4 +1,7 @@
 import math
+import io
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
 import streamlit as st
 
 # 페이지 설정
@@ -36,7 +39,7 @@ if not st.session_state["authenticated"]:
     st.button("로그인", on_click=check_password, type="primary")
     st.stop()
 
-# --- 파이프 계산기 본문 ---
+# --- 공통 데이터 및 계산 함수 ---
 st.title("📏 파이프 물량 및 견적 계산기")
 
 materials = {
@@ -46,7 +49,7 @@ materials = {
     "알루미늄 (0.0084823)": 0.0084823,
 }
 
-# 지역별 운임 표 Total 금액에 0.27을 곱해 USD로 환산 반영
+# 지역별 트럭 1대당 운임 (1 AED = 0.27 USD 환산 적용)
 shipping_destinations = {
     "지역 미선택 (운임 미포함)": 0.0,
     "Jebel Ali": 2123.75 * 0.27,
@@ -60,10 +63,24 @@ shipping_destinations = {
     "Abu Dhabi (Ruwais)": 3823.75 * 0.27
 }
 
-tab1, tab2 = st.tabs(["✍️ 직접 입력 모드", "📖 ASME B36.10/19 규격 조회 모드"])
+def get_truck_capacity(od_inch):
+    if 18.0 <= od_inch <= 20.0:
+        return 12, "18\"~20\" 구간 (총 12본 적재)"
+    elif 22.0 <= od_inch <= 24.0:
+        return 9, "22\"~24\" 구간 (총 9본 적재)"
+    elif 26.0 <= od_inch <= 32.0:
+        return 5, "26\"~32\" 구간 (총 5본 적재)"
+    elif 34.0 <= od_inch <= 52.0:
+        return 3, "34\"~52\" 구간 (총 3본 적재)"
+    elif od_inch >= 54.0:
+        return 1, "54\" 이상 구간 (총 1본 적재)"
+    else:
+        return 12, "18\" 미만 소구경 (기본 12본 적재)"
+
+tab1, tab2, tab3 = st.tabs(["✍️ 직접 입력 모드", "📊 엑셀 일괄 견적 모드", "📖 ASME B36.10/19 규격 조회"])
 
 # ==========================================
-# 탭 1: 직접 입력 모드
+# 탭 1: 직접 입력 모드 (단건 계산)
 # ==========================================
 with tab1:
     st.subheader("1. 재질 선택")
@@ -80,23 +97,23 @@ with tab1:
 
     col1, col2 = st.columns(2)
     with col1:
-        od_input = st.text_input("외경 (OD)", value="", placeholder="예: 12 또는 304.8", key="od_in")
-        id_input = st.text_input("내경 (ID)", value="", placeholder="예: 10 또는 254.0", key="id_in")
+        od_input = st.text_input("외경 (OD)", value="", placeholder="예: 20 또는 508", key="od_in")
+        id_input = st.text_input("내경 (ID)", value="", placeholder="예: 18 또는 488.94", key="id_in")
     with col2:
-        wt_input = st.text_input("두께 (WT)", value="", placeholder="예: 0.5 또는 12.7", key="wt_in")
+        wt_input = st.text_input("두께 (WT)", value="", placeholder="예: 9.53", key="wt_in")
         len_input_1 = st.text_input("총 길이 (Length, m)", value="1000.0", key="len_1")
 
     pipe_unit_len = st.number_input("파이프 본당 기준 길이 (m)", min_value=1.0, value=12.0, step=1.0, key="pipe_unit_len")
 
     st.divider()
-    st.subheader("3. 단가 및 운송 목적지 입력")
+    st.subheader("3. 단가 및 운송 조건 입력")
     col3, col4 = st.columns(2)
     with col3:
-        price_input_1 = st.text_input("톤당 단가 ($ / Ton)", value="", placeholder="예: 1200.0", key="price_1")
+        price_input_1 = st.text_input("톤당 단가 ($ / Ton)", value="830.0", placeholder="예: 830.0", key="price_1")
     with col4:
         rate_input_1 = st.text_input("원/달러 환율 (KRW/USD)", value="1350.0", key="rate_1")
 
-    selected_dest = st.selectbox("도착 지역 선택 (운송비 산출용 - 1AED=0.27USD 적용)", list(shipping_destinations.keys()), key="dest_select")
+    selected_dest = st.selectbox("도착 지역 선택 (DDP 운임 산출용 - 1AED=0.27USD)", list(shipping_destinations.keys()), key="dest_select")
 
     st.divider()
 
@@ -137,38 +154,22 @@ with tab1:
                     plate_width_m = plate_width_mm / 1000.0
 
                     od_inch = od / 25.4
-                    
-                    if 18.0 <= od_inch <= 20.0:
-                        truck_capacity = 12
-                        tier_desc = "18\"~20\" 구간 (총 12개 적재)"
-                    elif 22.0 <= od_inch <= 24.0:
-                        truck_capacity = 9
-                        tier_desc = "22\"~24\" 구간 (총 9개 적재)"
-                    elif 26.0 <= od_inch <= 32.0:
-                        truck_capacity = 5
-                        tier_desc = "26\"~32\" 구간 (총 5개 적재)"
-                    elif 34.0 <= od_inch <= 52.0:
-                        truck_capacity = 3
-                        tier_desc = "34\"~52\" 구간 (총 3개 적재)"
-                    elif od_inch >= 54.0:
-                        truck_capacity = 1
-                        tier_desc = "54\" 이상 구간 (총 1개 적재)"
-                    else:
-                        truck_capacity = 12
-                        tier_desc = "18\" 미만 소구경 (기본 12개 적재 기준)"
+                    truck_capacity, tier_desc = get_truck_capacity(od_inch)
 
                     total_pipes = math.ceil(length_m / pipe_unit_len)
                     required_trucks = math.ceil(total_pipes / truck_capacity)
 
-                    unit_freight_cost_usd = shipping_destinations[selected_dest]
-                    total_freight_cost_usd = required_trucks * unit_freight_cost_usd
+                    unit_freight_usd = shipping_destinations[selected_dest]
+                    total_freight_usd = required_trucks * unit_freight_usd
 
                     price_val = float(price_input_1) if price_input_1.strip() else 0.0
                     ex_rate = float(rate_input_1) if rate_input_1.strip() else 1350.0
-                    material_usd = total_ton * price_val
-
-                    grand_total_usd = material_usd + total_freight_cost_usd
-                    grand_total_krw = grand_total_usd * ex_rate
+                    
+                    ex_works_usd = total_ton * price_val
+                    ex_works_krw = ex_works_usd * ex_rate
+                    
+                    ddp_usd = ex_works_usd + total_freight_usd
+                    ddp_krw = ddp_usd * ex_rate
 
                     st.success("✨ 계산이 완료되었습니다!")
                     if calc_msg:
@@ -177,25 +178,200 @@ with tab1:
                     st.metric(label="미터당 중량", value=f"{unit_kg:.4f} kg/m ({unit_ton:.6f} Ton/m)")
                     st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.6f} Ton")
                     st.metric(label="소재 플레이트 폭 (전개폭)", value=f"{plate_width_mm:,.2f} mm ({plate_width_m:,.3f} m)")
-                    
                     st.metric(label="🚚 필요한 트럭 수", value=f"{required_trucks} 대", delta=f"총 파이프 {total_pipes}본 / {tier_desc}")
 
-                    if selected_dest != "지역 미선택 (운임 미포함)":
-                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"$ {total_freight_cost_usd:,.2f}", delta=f"1대당 $ {unit_freight_cost_usd:,.2f} × {required_trucks}대")
-                    else:
-                        st.info("💡 지역을 선택하시면 USD 환산 총 운송비 및 최종 합산 견적이 함께 산출됩니다.")
-
-                    st.metric(label="자재 순수 금액 (USD)", value=f"$ {material_usd:,.2f}")
-                    
                     st.divider()
-                    st.metric(label="🔥 최종 총가격 (자재비 + 운송비 포함)", value=f"$ {grand_total_usd:,.2f}", delta=f"환율 적용 ₩ {grand_total_krw:,.0f}")
+                    st.markdown("### 💰 조건별 최종 견적 비교")
+                    st.metric(label="1️⃣ Ex-WORKS 총액 (운임 미포함)", value=f"$ {ex_works_usd:,.2f}", delta=f"₩ {ex_works_krw:,.0f}")
+                    
+                    if selected_dest != "지역 미선택 (운임 미포함)":
+                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"$ {total_freight_usd:,.2f}", delta=f"1대당 $ {unit_freight_usd:,.2f} × {required_trucks}대")
+                        st.metric(label=f"2️⃣ DDP 총액 ({selected_dest} 운임 포함)", value=f"$ {ddp_usd:,.2f}", delta=f"₩ {ddp_krw:,.0f}")
+                    else:
+                        st.info("💡 도착 지역을 선택하시면 DDP(운임 포함) 최종 견적도 함께 산출됩니다.")
         except ValueError:
             st.error("⚠️ 숫자 형식만 올바르게 입력해 주세요.")
 
 # ==========================================
-# 탭 2: ASME B36.10 / B36.19 규격 조회 모드
+# 탭 2: 엑셀 일괄 견적 모드 (Sample Offer 양식 완벽 호환)
 # ==========================================
 with tab2:
+    st.subheader("📊 엑셀 파일 일괄 자동 견적 (Sample Offer 양식)")
+    st.markdown("""
+    업로드하신 `Sample Offer.xlsx` 양식에 맞춰 **OD(INCH 또는 MM), W.T(MM), LENGTH(MTR/PC), PCS(본수), USD/MT(톤당 단가)**가 입력된 파일을 올리시면, 나머지 중량·트럭 수·Ex-WORKS & DDP 견적이 모두 채워진 엑셀 파일을 생성합니다.
+    """)
+
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+        selected_mat_excel = st.selectbox("적용 재질 (기본: 탄소강)", list(materials.keys()), key="mat_excel")
+        factor_excel = materials[selected_mat_excel]
+    with col_e2:
+        selected_dest_excel = st.selectbox("DDP 도착 지역 선택", list(shipping_destinations.keys()), key="dest_excel")
+
+    default_price_excel = st.number_input("기본 톤당 단가 ($ / MT) - 엑셀에 단가가 비어있을 경우 적용", min_value=0.0, value=830.0, step=10.0, key="def_price_ex")
+
+    uploaded_file = st.file_uploader("엑셀 파일 업로드 (.xlsx)", type=["xlsx"], key="excel_uploader")
+
+    if uploaded_file is not None:
+        try:
+            wb = openpyxl.load_workbook(uploaded_file)
+            ws = wb.active
+
+            # 데이터 시작 행 탐색 (Sample Offer 기준 1~2행 헤더, 3행부터 데이터)
+            total_pcs_all = 0
+            total_mtr_all = 0.0
+            total_mt_all = 0.0
+            total_exworks_usd = 0.0
+            total_trucks_all = 0
+
+            # 기존 Total 행이 있다면 지우기 위해 마지막 데이터 행 추적
+            last_data_row = 2
+
+            for row_idx in range(3, ws.max_row + 1):
+                no_val = ws.cell(row=row_idx, column=1).value
+                od_inch_val = ws.cell(row=row_idx, column=3).value
+                od_mm_val = ws.cell(row=row_idx, column=4).value
+                wt_val = ws.cell(row=row_idx, column=5).value
+
+                # Total 행이나 빈 행이면 중단
+                if str(no_val).strip().lower() == "total" or (od_inch_val is None and od_mm_val is None):
+                    if ws.cell(row=row_idx, column=11).value == "TOTAL(USD)" or str(no_val).strip().lower() == "total":
+                        # 기존 합계 행 초기화
+                        for c in range(1, 16):
+                            ws.cell(row=row_idx, column=c).value = None
+                    continue
+
+                if wt_val is None:
+                    continue
+
+                last_data_row = row_idx
+
+                # OD 환산 (INCH 입력 시 MM 자동 계산, MM 입력 시 INCH 자동 계산)
+                if od_inch_val is not None and od_mm_val is None:
+                    od_inch = float(od_inch_val)
+                    od_mm = round(od_inch * 25.4, 2)
+                    ws.cell(row=row_idx, column=4).value = od_mm
+                elif od_mm_val is not None and od_inch_val is None:
+                    od_mm = float(od_mm_val)
+                    od_inch = round(od_mm / 25.4, 3)
+                    ws.cell(row=row_idx, column=3).value = od_inch
+                else:
+                    od_inch = float(od_inch_val)
+                    od_mm = float(od_mm_val)
+
+                wt_mm = float(wt_val)
+
+                # 본당 길이 (기본 12m), PCS, 총 MTR 계산
+                len_pc_val = ws.cell(row=row_idx, column=6).value
+                pcs_val = ws.cell(row=row_idx, column=8).value
+                mtr_val = ws.cell(row=row_idx, column=9).value
+
+                len_pc = float(len_pc_val) if len_pc_val is not None else 12.0
+                ws.cell(row=row_idx, column=6).value = len_pc
+
+                if pcs_val is not None:
+                    pcs = int(pcs_val)
+                    mtr = pcs * len_pc
+                elif mtr_val is not None:
+                    mtr = float(mtr_val)
+                    pcs = math.ceil(mtr / len_pc)
+                else:
+                    pcs = 1
+                    mtr = len_pc
+
+                ws.cell(row=row_idx, column=8).value = pcs
+                ws.cell(row=row_idx, column=9).value = mtr
+
+                # 단위 중량 (KG/MTR) 및 총 중량 (MT) 계산
+                kg_per_mtr = (od_mm - wt_mm) * wt_mm * factor_excel
+                total_mt = (kg_per_mtr * mtr) / 1000.0
+
+                ws.cell(row=row_idx, column=7).value = round(kg_per_mtr, 4)
+                ws.cell(row=row_idx, column=10).value = round(total_mt, 4)
+
+                # 단가 (USD/MT) 및 미터당 단가 (USD/MTR), 행 총액 (TOTAL USD)
+                price_mt_val = ws.cell(row=row_idx, column=11).value
+                price_mt = float(price_mt_val) if price_mt_val is not None else default_price_excel
+                ws.cell(row=row_idx, column=11).value = price_mt
+
+                price_mtr = (kg_per_mtr / 1000.0) * price_mt
+                row_total_usd = total_mt * price_mt
+
+                ws.cell(row=row_idx, column=12).value = round(price_mtr, 2)
+                ws.cell(row=row_idx, column=13).value = round(row_total_usd, 2)
+
+                # 행별 트럭 수 계산 및 Remark 표시
+                truck_cap, _ = get_truck_capacity(od_inch)
+                row_trucks = math.ceil(pcs / truck_cap)
+                ws.cell(row=row_idx, column=14).value = f"{row_trucks} Truck(s)"
+
+                # 누적 합산
+                total_pcs_all += pcs
+                total_mtr_all += mtr
+                total_mt_all += total_mt
+                total_exworks_usd += row_total_usd
+                total_trucks_all += row_trucks
+
+            # 하단 요약 (Ex-WORKS & DDP 이원화 출력)
+            sum_start_row = last_data_row + 2
+            bold_font = Font(bold=True)
+            highlight_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+
+            # 1) Ex-WORKS 합계 행
+            ws.cell(row=sum_start_row, column=2, value="TOTAL (Ex-WORKS / 운임 미포함)").font = bold_font
+            ws.cell(row=sum_start_row, column=8, value=total_pcs_all).font = bold_font
+            ws.cell(row=sum_start_row, column=9, value=round(total_mtr_all, 2)).font = bold_font
+            ws.cell(row=sum_start_row, column=10, value=round(total_mt_all, 4)).font = bold_font
+            ws.cell(row=sum_start_row, column=13, value=round(total_exworks_usd, 2)).font = bold_font
+            ws.cell(row=sum_start_row, column=14, value=f"Total {total_trucks_all} Trucks").font = bold_font
+
+            # 2) 운송비 및 DDP 합계 행 (지역 선택 시)
+            unit_freight = shipping_destinations[selected_dest_excel]
+            total_freight_excel = total_trucks_all * unit_freight
+            total_ddp_usd = total_exworks_usd + total_freight_excel
+
+            if selected_dest_excel != "지역 미선택 (운임 미포함)":
+                freight_row = sum_start_row + 1
+                ws.cell(row=freight_row, column=2, value=f"Freight Charge ({selected_dest_excel} / {total_trucks_all} Trucks × ${unit_freight:,.2f})").font = bold_font
+                ws.cell(row=freight_row, column=13, value=round(total_freight_excel, 2)).font = bold_font
+
+                ddp_row = sum_start_row + 2
+                ws.cell(row=ddp_row, column=2, value=f"TOTAL (DDP {selected_dest_excel} / 운임 포함)").font = bold_font
+                ws.cell(row=ddp_row, column=13, value=round(total_ddp_usd, 2)).font = bold_font
+                ws.cell(row=ddp_row, column=13).fill = highlight_fill
+
+            # 결과 파일 메모리에 저장
+            output_buffer = io.BytesIO()
+            wb.save(output_buffer)
+            output_buffer.seek(0)
+
+            st.success("✅ 엑셀 견적서 계산이 완료되었습니다!")
+            
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                st.metric(label="Ex-WORKS 총액 (운임 미포함)", value=f"$ {total_exworks_usd:,.2f}", delta=f"총 중량: {total_mt_all:,.2f} MT")
+            with col_res2:
+                if selected_dest_excel != "지역 미선택 (운임 미포함)":
+                    st.metric(label=f"DDP 총액 ({selected_dest_excel})", value=f"$ {total_ddp_usd:,.2f}", delta=f"운임비: $ {total_freight_excel:,.2f} ({total_trucks_all}대)")
+                else:
+                    st.metric(label="DDP 총액", value="지역 미선택", delta="도착 지역 선택 시 산출")
+
+            st.download_button(
+                label="📥 완성된 견적 엑셀 파일 다운로드 (.xlsx)",
+                data=output_buffer,
+                file_name=f"Offer_Calculated_{selected_dest_excel.split()[0]}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+
+        except Exception as e:
+            st.error(f"⚠️ 엑셀 파일 처리 중 오류가 발생했습니다: {e}")
+
+# ==========================================
+# 탭 3: ASME B36.10 / B36.19 규격 조회 모드 (전체 DB 복구)
+# ==========================================
+with tab3:
     st.subheader("📖 ASME 표준 규격 치수 조회 (1/2\" ~ 48\")")
 
     asme_pipe_db = {
@@ -247,7 +423,6 @@ with tab2:
     auto_id = auto_od - (2 * auto_wt)
 
     st.divider()
-
     st.markdown("### 📐 규격 치수 환산 결과")
     
     col_r1, col_r2, col_r3 = st.columns(3)
