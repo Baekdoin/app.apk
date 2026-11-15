@@ -85,12 +85,18 @@ def to_float(val):
     except ValueError:
         return None
 
-def safe_set_cell(ws, row, col, value):
-    """병합된 셀일 경우 에러가 나지 않도록 예외 처리하는 안전 쓰기 함수"""
+def safe_set_cell(ws, row, col, value, font=None, fill=None, number_format=None):
+    """병합된 셀 예외 처리 및 Times New Roman 폰트/숫자 포맷 적용 함수"""
     try:
-        ws.cell(row=row, column=col).value = value
+        cell = ws.cell(row=row, column=col)
+        cell.value = value
+        if font:
+            cell.font = font
+        if fill:
+            cell.fill = fill
+        if number_format:
+            cell.number_format = number_format
     except AttributeError:
-        # 병합된 셀의 서브 셀일 경우 무시
         pass
 
 tab1, tab2, tab3 = st.tabs(["✍️ 직접 입력 모드", "📊 엑셀 일괄 견적 모드", "📖 ASME B36.10/19 규격 조회"])
@@ -191,17 +197,17 @@ with tab1:
                     if calc_msg:
                         st.info(calc_msg)
 
-                    st.metric(label="미터당 중량", value=f"{unit_kg:.4f} kg/m ({unit_ton:.6f} Ton/m)")
-                    st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.6f} Ton")
-                    st.metric(label="소재 플레이트 폭 (전개폭)", value=f"{plate_width_mm:,.2f} mm ({plate_width_m:,.3f} m)")
-                    st.metric(label="🚚 필요한 트럭 수", value=f"{required_trucks} 대", delta=f"총 파이프 {total_pipes}본 / {tier_desc}")
+                    st.metric(label="미터당 중량", value=f"{unit_kg:,.2f} kg/m ({unit_ton:,.2f} Ton/m)")
+                    st.metric(label="총 중량 (Total Ton)", value=f"{total_ton:,.2f} Ton")
+                    st.metric(label="소재 플레이트 폭 (전개폭)", value=f"{plate_width_mm:,.2f} mm ({plate_width_m:,.2f} m)")
+                    st.metric(label="🚚 필요한 트럭 수", value=f"{required_trucks:,} 대", delta=f"총 파이프 {total_pipes:,}본 / {tier_desc}")
 
                     st.divider()
                     st.markdown("### 💰 조건별 최종 견적 비교")
                     st.metric(label="1️⃣ Ex-WORKS 총액 (운임 미포함)", value=f"$ {ex_works_usd:,.2f}", delta=f"₩ {ex_works_krw:,.0f}")
                     
                     if selected_dest != "지역 미선택 (운임 미포함)":
-                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"$ {total_freight_usd:,.2f}", delta=f"1대당 $ {unit_freight_usd:,.2f} × {required_trucks}대")
+                        st.metric(label=f"📦 총 운송비 ({selected_dest} 기준)", value=f"$ {total_freight_usd:,.2f}", delta=f"1대당 $ {unit_freight_usd:,.2f} × {required_trucks:,}대")
                         st.metric(label=f"2️⃣ DDP 총액 ({selected_dest} 운임 포함)", value=f"$ {ddp_usd:,.2f}", delta=f"₩ {ddp_krw:,.0f}")
                     else:
                         st.info("💡 도착 지역을 선택하시면 DDP(운임 포함) 최종 견적도 함께 산출됩니다.")
@@ -325,18 +331,19 @@ with tab2:
                 total_exworks_usd += row_total_usd
                 total_trucks_all += row_trucks
 
-            # 하단 요약 (Ex-WORKS & DDP 이원화 출력)
+            # 하단 요약 (Times New Roman 폰트 및 소수점 둘째 자리, 천단위 콤마 서식 적용)
             sum_start_row = last_data_row + 2
-            bold_font = Font(bold=True)
+            tnr_bold_font = Font(name="Times New Roman", size=11, bold=True)
             highlight_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+            num_format = "#,##0.00"
 
             # 1) Ex-WORKS 합계 행
-            safe_set_cell(ws, sum_start_row, 2, "TOTAL (Ex-WORKS / 운임 미포함)")
-            safe_set_cell(ws, sum_start_row, 8, total_pcs_all)
-            safe_set_cell(ws, sum_start_row, 9, round(total_mtr_all, 2))
-            safe_set_cell(ws, sum_start_row, 10, round(total_mt_all, 4))
-            safe_set_cell(ws, sum_start_row, 13, round(total_exworks_usd, 2))
-            safe_set_cell(ws, sum_start_row, 14, f"Total {total_trucks_all} Trucks")
+            safe_set_cell(ws, sum_start_row, 2, "TOTAL (Ex-WORKS / 운임 미포함)", font=tnr_bold_font)
+            safe_set_cell(ws, sum_start_row, 8, total_pcs_all, font=tnr_bold_font)
+            safe_set_cell(ws, sum_start_row, 9, round(total_mtr_all, 2), font=tnr_bold_font, number_format=num_format)
+            safe_set_cell(ws, sum_start_row, 10, round(total_mt_all, 4), font=tnr_bold_font, number_format="#,##0.0000")
+            safe_set_cell(ws, sum_start_row, 13, round(total_exworks_usd, 2), font=tnr_bold_font, number_format=num_format)
+            safe_set_cell(ws, sum_start_row, 14, f"Total {total_trucks_all} Trucks", font=tnr_bold_font)
 
             # 2) 운송비 및 DDP 합계 행 (지역 선택 시)
             unit_freight = shipping_destinations[selected_dest_excel]
@@ -345,16 +352,12 @@ with tab2:
 
             if selected_dest_excel != "지역 미선택 (운임 미포함)":
                 freight_row = sum_start_row + 1
-                safe_set_cell(ws, freight_row, 2, f"Freight Charge ({selected_dest_excel} / {total_trucks_all} Trucks × ${unit_freight:,.2f})")
-                safe_set_cell(ws, freight_row, 13, round(total_freight_excel, 2))
+                safe_set_cell(ws, freight_row, 2, f"Freight Charge ({selected_dest_excel} / {total_trucks_all} Trucks × ${unit_freight:,.2f})", font=tnr_bold_font)
+                safe_set_cell(ws, freight_row, 13, round(total_freight_excel, 2), font=tnr_bold_font, number_format=num_format)
 
                 ddp_row = sum_start_row + 2
-                safe_set_cell(ws, ddp_row, 2, f"TOTAL (DDP {selected_dest_excel} / 운임 포함)")
-                safe_set_cell(ws, ddp_row, 13, round(total_ddp_usd, 2))
-                try:
-                    ws.cell(row=ddp_row, column=13).fill = highlight_fill
-                except AttributeError:
-                    pass
+                safe_set_cell(ws, ddp_row, 2, f"TOTAL (DDP {selected_dest_excel} / 운임 포함)", font=tnr_bold_font)
+                safe_set_cell(ws, ddp_row, 13, round(total_ddp_usd, 2), font=tnr_bold_font, fill=highlight_fill, number_format=num_format)
 
             output_buffer = io.BytesIO()
             wb.save(output_buffer)
@@ -364,7 +367,7 @@ with tab2:
             
             col_res1, col_res2 = st.columns(2)
             with col_res1:
-                st.metric(label="Ex-WORKS 총액 (운임 미포함)", value=f"$ {total_exworks_usd:,.2f}", delta=f"총 중량: {total_mt_all:,.2f} MT")
+                st.metric(label="Ex-WORKS 총액 (운임 미포함)", value=f"$ {ex_works_usd:,.2f}", delta=f"총 중량: {total_mt_all:,.2f} MT")
             with col_res2:
                 if selected_dest_excel != "지역 미선택 (운임 미포함)":
                     st.metric(label=f"DDP 총액 ({selected_dest_excel})", value=f"$ {total_ddp_usd:,.2f}", delta=f"운임비: $ {total_freight_excel:,.2f} ({total_trucks_all}대)")
