@@ -85,6 +85,14 @@ def to_float(val):
     except ValueError:
         return None
 
+def safe_set_cell(ws, row, col, value):
+    """병합된 셀일 경우 에러가 나지 않도록 예외 처리하는 안전 쓰기 함수"""
+    try:
+        ws.cell(row=row, column=col).value = value
+    except AttributeError:
+        # 병합된 셀의 서브 셀일 경우 무시
+        pass
+
 tab1, tab2, tab3 = st.tabs(["✍️ 직접 입력 모드", "📊 엑셀 일괄 견적 모드", "📖 ASME B36.10/19 규격 조회"])
 
 # ==========================================
@@ -101,7 +109,7 @@ with tab1:
     with col_u1:
         od_id_unit = st.radio("외경/내경 (OD/ID) 단위", ["밀리미터 (mm)", "인치 (inch / NPS)"], horizontal=True, key="unit_od")
     with col_u2:
-        wt_unit = st.radio("두께 (WT) 단위", ["밀리미터 (mm)", "인치 (inch)"], horizontal=True, key="wt_unit")
+        wt_unit = st.radio("두께 (WT) 단위", ["밀리미터 (mm)", "인치 (inch)"], horizontal=True, key="unit_wt")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -242,7 +250,7 @@ with tab2:
                 # 기존 Total/합계 행이 있다면 비우기
                 if str(no_val).strip().lower() == "total" or str(ws.cell(row=row_idx, column=11).value).strip().upper() == "TOTAL(USD)":
                     for c in range(1, 16):
-                        ws.cell(row=row_idx, column=c).value = None
+                        safe_set_cell(ws, row_idx, c, None)
                     continue
 
                 # 헤더 행('INCH', 'MM')이나 빈 행은 자동으로 건너뜀
@@ -255,11 +263,11 @@ with tab2:
                 if od_inch_num is not None and od_mm_num is None:
                     od_inch = od_inch_num
                     od_mm = round(od_inch * 25.4, 2)
-                    ws.cell(row=row_idx, column=4).value = od_mm
+                    safe_set_cell(ws, row_idx, 4, od_mm)
                 elif od_mm_num is not None and od_inch_num is None:
                     od_mm = od_mm_num
                     od_inch = round(od_mm / 25.4, 3)
-                    ws.cell(row=row_idx, column=3).value = od_inch
+                    safe_set_cell(ws, row_idx, 3, od_inch)
                 else:
                     od_inch = od_inch_num
                     od_mm = od_mm_num
@@ -272,7 +280,7 @@ with tab2:
                 mtr_num = to_float(ws.cell(row=row_idx, column=9).value)
 
                 len_pc = len_pc_num if len_pc_num is not None else 12.0
-                ws.cell(row=row_idx, column=6).value = len_pc
+                safe_set_cell(ws, row_idx, 6, len_pc)
 
                 if pcs_num is not None:
                     pcs = int(pcs_num)
@@ -284,31 +292,31 @@ with tab2:
                     pcs = 1
                     mtr = len_pc
 
-                ws.cell(row=row_idx, column=8).value = pcs
-                ws.cell(row=row_idx, column=9).value = mtr
+                safe_set_cell(ws, row_idx, 8, pcs)
+                safe_set_cell(ws, row_idx, 9, mtr)
 
                 # 단위 중량 (KG/MTR) 및 총 중량 (MT) 계산
                 kg_per_mtr = (od_mm - wt_mm) * wt_mm * factor_excel
                 total_mt = (kg_per_mtr * mtr) / 1000.0
 
-                ws.cell(row=row_idx, column=7).value = round(kg_per_mtr, 4)
-                ws.cell(row=row_idx, column=10).value = round(total_mt, 4)
+                safe_set_cell(ws, row_idx, 7, round(kg_per_mtr, 4))
+                safe_set_cell(ws, row_idx, 10, round(total_mt, 4))
 
                 # 단가 (USD/MT) 및 미터당 단가 (USD/MTR), 행 총액 (TOTAL USD)
                 price_mt_num = to_float(ws.cell(row=row_idx, column=11).value)
                 price_mt = price_mt_num if price_mt_num is not None else default_price_excel
-                ws.cell(row=row_idx, column=11).value = price_mt
+                safe_set_cell(ws, row_idx, 11, price_mt)
 
                 price_mtr = (kg_per_mtr / 1000.0) * price_mt
                 row_total_usd = total_mt * price_mt
 
-                ws.cell(row=row_idx, column=12).value = round(price_mtr, 2)
-                ws.cell(row=row_idx, column=13).value = round(row_total_usd, 2)
+                safe_set_cell(ws, row_idx, 12, round(price_mtr, 2))
+                safe_set_cell(ws, row_idx, 13, round(row_total_usd, 2))
 
                 # 행별 트럭 수 계산 및 Remark 표시
                 truck_cap, _ = get_truck_capacity(od_inch)
                 row_trucks = math.ceil(pcs / truck_cap)
-                ws.cell(row=row_idx, column=14).value = f"{row_trucks} Truck(s)"
+                safe_set_cell(ws, row_idx, 14, f"{row_trucks} Truck(s)")
 
                 # 누적 합산
                 total_pcs_all += pcs
@@ -323,12 +331,12 @@ with tab2:
             highlight_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
 
             # 1) Ex-WORKS 합계 행
-            ws.cell(row=sum_start_row, column=2, value="TOTAL (Ex-WORKS / 운임 미포함)").font = bold_font
-            ws.cell(row=sum_start_row, column=8, value=total_pcs_all).font = bold_font
-            ws.cell(row=sum_start_row, column=9, value=round(total_mtr_all, 2)).font = bold_font
-            ws.cell(row=sum_start_row, column=10, value=round(total_mt_all, 4)).font = bold_font
-            ws.cell(row=sum_start_row, column=13, value=round(total_exworks_usd, 2)).font = bold_font
-            ws.cell(row=sum_start_row, column=14, value=f"Total {total_trucks_all} Trucks").font = bold_font
+            safe_set_cell(ws, sum_start_row, 2, "TOTAL (Ex-WORKS / 운임 미포함)")
+            safe_set_cell(ws, sum_start_row, 8, total_pcs_all)
+            safe_set_cell(ws, sum_start_row, 9, round(total_mtr_all, 2))
+            safe_set_cell(ws, sum_start_row, 10, round(total_mt_all, 4))
+            safe_set_cell(ws, sum_start_row, 13, round(total_exworks_usd, 2))
+            safe_set_cell(ws, sum_start_row, 14, f"Total {total_trucks_all} Trucks")
 
             # 2) 운송비 및 DDP 합계 행 (지역 선택 시)
             unit_freight = shipping_destinations[selected_dest_excel]
@@ -337,13 +345,16 @@ with tab2:
 
             if selected_dest_excel != "지역 미선택 (운임 미포함)":
                 freight_row = sum_start_row + 1
-                ws.cell(row=freight_row, column=2, value=f"Freight Charge ({selected_dest_excel} / {total_trucks_all} Trucks × ${unit_freight:,.2f})").font = bold_font
-                ws.cell(row=freight_row, column=13, value=round(total_freight_excel, 2)).font = bold_font
+                safe_set_cell(ws, freight_row, 2, f"Freight Charge ({selected_dest_excel} / {total_trucks_all} Trucks × ${unit_freight:,.2f})")
+                safe_set_cell(ws, freight_row, 13, round(total_freight_excel, 2))
 
                 ddp_row = sum_start_row + 2
-                ws.cell(row=ddp_row, column=2, value=f"TOTAL (DDP {selected_dest_excel} / 운임 포함)").font = bold_font
-                ws.cell(row=ddp_row, column=13, value=round(total_ddp_usd, 2)).font = bold_font
-                ws.cell(row=ddp_row, column=13).fill = highlight_fill
+                safe_set_cell(ws, ddp_row, 2, f"TOTAL (DDP {selected_dest_excel} / 운임 포함)")
+                safe_set_cell(ws, ddp_row, 13, round(total_ddp_usd, 2))
+                try:
+                    ws.cell(row=ddp_row, column=13).fill = highlight_fill
+                except AttributeError:
+                    pass
 
             output_buffer = io.BytesIO()
             wb.save(output_buffer)
