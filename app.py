@@ -1,7 +1,7 @@
 import math
 import io
 import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.styles import Font, PatternFill
 import streamlit as st
 
 # 페이지 설정
@@ -76,6 +76,14 @@ def get_truck_capacity(od_inch):
         return 1, "54\" 이상 구간 (총 1본 적재)"
     else:
         return 12, "18\" 미만 소구경 (기본 12본 적재)"
+
+def to_float(val):
+    if val is None:
+        return None
+    try:
+        return float(str(val).replace(",", "").strip())
+    except ValueError:
+        return None
 
 tab1, tab2, tab3 = st.tabs(["✍️ 직접 입력 모드", "📊 엑셀 일괄 견적 모드", "📖 ASME B36.10/19 규격 조회"])
 
@@ -198,7 +206,7 @@ with tab1:
 with tab2:
     st.subheader("📊 엑셀 파일 일괄 자동 견적 (Sample Offer 양식)")
     st.markdown("""
-    업로드하신 `Sample Offer.xlsx` 양식에 맞춰 **OD(INCH 또는 MM), W.T(MM), LENGTH(MTR/PC), PCS(본수), USD/MT(톤당 단가)**가 입력된 파일을 올리시면, 나머지 중량·트럭 수·Ex-WORKS & DDP 견적이 모두 채워진 엑셀 파일을 생성합니다.
+    `Sample Offer.xlsx` 양식에 맞춰 **OD(INCH 또는 MM), W.T(MM), LENGTH(MTR/PC), PCS(본수), USD/MT(톤당 단가)**가 입력된 파일을 올리시면, 나머지 중량·트럭 수·Ex-WORKS & DDP 견적이 모두 채워진 엑셀 파일을 생성합니다.
     """)
 
     col_e1, col_e2 = st.columns(2)
@@ -217,63 +225,60 @@ with tab2:
             wb = openpyxl.load_workbook(uploaded_file)
             ws = wb.active
 
-            # 데이터 시작 행 탐색 (Sample Offer 기준 1~2행 헤더, 3행부터 데이터)
             total_pcs_all = 0
             total_mtr_all = 0.0
             total_mt_all = 0.0
             total_exworks_usd = 0.0
             total_trucks_all = 0
 
-            # 기존 Total 행이 있다면 지우기 위해 마지막 데이터 행 추적
-            last_data_row = 2
+            last_data_row = 3
 
-            for row_idx in range(3, ws.max_row + 1):
+            for row_idx in range(2, ws.max_row + 1):
                 no_val = ws.cell(row=row_idx, column=1).value
-                od_inch_val = ws.cell(row=row_idx, column=3).value
-                od_mm_val = ws.cell(row=row_idx, column=4).value
-                wt_val = ws.cell(row=row_idx, column=5).value
+                od_inch_num = to_float(ws.cell(row=row_idx, column=3).value)
+                od_mm_num = to_float(ws.cell(row=row_idx, column=4).value)
+                wt_num = to_float(ws.cell(row=row_idx, column=5).value)
 
-                # Total 행이나 빈 행이면 중단
-                if str(no_val).strip().lower() == "total" or (od_inch_val is None and od_mm_val is None):
-                    if ws.cell(row=row_idx, column=11).value == "TOTAL(USD)" or str(no_val).strip().lower() == "total":
-                        # 기존 합계 행 초기화
-                        for c in range(1, 16):
-                            ws.cell(row=row_idx, column=c).value = None
+                # 기존 Total/합계 행이 있다면 비우기
+                if str(no_val).strip().lower() == "total" or str(ws.cell(row=row_idx, column=11).value).strip().upper() == "TOTAL(USD)":
+                    for c in range(1, 16):
+                        ws.cell(row=row_idx, column=c).value = None
                     continue
 
-                if wt_val is None:
+                # 헤더 행('INCH', 'MM')이나 빈 행은 자동으로 건너뜀
+                if (od_inch_num is None and od_mm_num is None) or wt_num is None:
                     continue
 
                 last_data_row = row_idx
 
                 # OD 환산 (INCH 입력 시 MM 자동 계산, MM 입력 시 INCH 자동 계산)
-                if od_inch_val is not None and od_mm_val is None:
-                    od_inch = float(od_inch_val)
+                if od_inch_num is not None and od_mm_num is None:
+                    od_inch = od_inch_num
                     od_mm = round(od_inch * 25.4, 2)
                     ws.cell(row=row_idx, column=4).value = od_mm
-                elif od_mm_val is not None and od_inch_val is None:
-                    od_mm = float(od_mm_val)
+                elif od_mm_num is not None and od_inch_num is None:
+                    od_mm = od_mm_num
                     od_inch = round(od_mm / 25.4, 3)
                     ws.cell(row=row_idx, column=3).value = od_inch
                 else:
-                    od_inch = float(od_inch_val)
-                    od_mm = float(od_mm_val)
+                    od_inch = od_inch_num
+                    od_mm = od_mm_num
 
-                wt_mm = float(wt_val)
+                wt_mm = wt_num
 
                 # 본당 길이 (기본 12m), PCS, 총 MTR 계산
-                len_pc_val = ws.cell(row=row_idx, column=6).value
-                pcs_val = ws.cell(row=row_idx, column=8).value
-                mtr_val = ws.cell(row=row_idx, column=9).value
+                len_pc_num = to_float(ws.cell(row=row_idx, column=6).value)
+                pcs_num = to_float(ws.cell(row=row_idx, column=8).value)
+                mtr_num = to_float(ws.cell(row=row_idx, column=9).value)
 
-                len_pc = float(len_pc_val) if len_pc_val is not None else 12.0
+                len_pc = len_pc_num if len_pc_num is not None else 12.0
                 ws.cell(row=row_idx, column=6).value = len_pc
 
-                if pcs_val is not None:
-                    pcs = int(pcs_val)
+                if pcs_num is not None:
+                    pcs = int(pcs_num)
                     mtr = pcs * len_pc
-                elif mtr_val is not None:
-                    mtr = float(mtr_val)
+                elif mtr_num is not None:
+                    mtr = mtr_num
                     pcs = math.ceil(mtr / len_pc)
                 else:
                     pcs = 1
@@ -290,8 +295,8 @@ with tab2:
                 ws.cell(row=row_idx, column=10).value = round(total_mt, 4)
 
                 # 단가 (USD/MT) 및 미터당 단가 (USD/MTR), 행 총액 (TOTAL USD)
-                price_mt_val = ws.cell(row=row_idx, column=11).value
-                price_mt = float(price_mt_val) if price_mt_val is not None else default_price_excel
+                price_mt_num = to_float(ws.cell(row=row_idx, column=11).value)
+                price_mt = price_mt_num if price_mt_num is not None else default_price_excel
                 ws.cell(row=row_idx, column=11).value = price_mt
 
                 price_mtr = (kg_per_mtr / 1000.0) * price_mt
@@ -340,7 +345,6 @@ with tab2:
                 ws.cell(row=ddp_row, column=13, value=round(total_ddp_usd, 2)).font = bold_font
                 ws.cell(row=ddp_row, column=13).fill = highlight_fill
 
-            # 결과 파일 메모리에 저장
             output_buffer = io.BytesIO()
             wb.save(output_buffer)
             output_buffer.seek(0)
@@ -369,7 +373,7 @@ with tab2:
             st.error(f"⚠️ 엑셀 파일 처리 중 오류가 발생했습니다: {e}")
 
 # ==========================================
-# 탭 3: ASME B36.10 / B36.19 규격 조회 모드 (전체 DB 복구)
+# 탭 3: ASME B36.10 / B36.19 규격 조회 모드
 # ==========================================
 with tab3:
     st.subheader("📖 ASME 표준 규격 치수 조회 (1/2\" ~ 48\")")
