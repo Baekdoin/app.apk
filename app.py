@@ -367,7 +367,7 @@ with tab2:
             
             col_res1, col_res2 = st.columns(2)
             with col_res1:
-                st.metric(label="Ex-WORKS 총액 (운임 미포함)", value=f"$ {ex_works_usd:,.2f}", delta=f"총 중량: {total_mt_all:,.2f} MT")
+                st.metric(label="Ex-WORKS 총액 (운임 미포함)", value=f"$ {total_exworks_usd:,.2f}", delta=f"총 중량: {total_mt_all:,.2f} MT")
             with col_res2:
                 if selected_dest_excel != "지역 미선택 (운임 미포함)":
                     st.metric(label=f"DDP 총액 ({selected_dest_excel})", value=f"$ {total_ddp_usd:,.2f}", delta=f"운임비: $ {total_freight_excel:,.2f} ({total_trucks_all}대)")
